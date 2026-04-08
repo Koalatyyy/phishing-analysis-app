@@ -77,5 +77,81 @@
 
 </div>
   <script src="analyzer.js"></script>
+  <script>
+  const dropZone     = document.getElementById('drop-zone');
+  const dropFilename = document.getElementById('drop-filename');
+  const dropError    = document.getElementById('drop-error');
+  const pasteArea    = document.getElementById('paste-area');
+  const pasteError   = document.getElementById('paste-error');
+  const btnAnalyze   = document.getElementById('btn-analyze');
+
+  let droppedEmlText = null;
+
+  function showError(el, msg) { el.textContent = msg; el.classList.add('visible'); }
+  function clearError(el)     { el.textContent = '';  el.classList.remove('visible'); }
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    clearError(dropError);
+    droppedEmlText = null;
+    dropZone.classList.remove('has-file');
+    dropFilename.style.display = 'none';
+
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.eml')) {
+      showError(dropError, 'Only .eml files are supported. Use the paste area for raw headers.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      droppedEmlText = ev.target.result;
+      dropZone.classList.add('has-file');
+      dropFilename.textContent = file.name;
+      dropFilename.style.display = 'block';
+    };
+    reader.readAsText(file);
+  });
+
+  dropZone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') dropZone.click();
+  });
+
+  btnAnalyze.addEventListener('click', () => {
+    clearError(dropError);
+    clearError(pasteError);
+
+    const isEml = !!droppedEmlText;
+    const input = isEml ? droppedEmlText : pasteArea.value.trim();
+
+    if (!input) {
+      showError(pasteError, 'Paste headers or drop a .eml file first.');
+      return;
+    }
+
+    const parseHtml = isEml ? (html) => {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return Array.from(doc.querySelectorAll('a[href]')).map(a => ({
+        href: a.getAttribute('href') || '',
+        text: a.textContent.trim(),
+      }));
+    } : null;
+
+    const result = window.Analyzer.runAnalysis(input, { isEml, parseHtml });
+
+    if (result.error) {
+      showError(pasteError, result.error);
+      return;
+    }
+
+    renderResults(result, isEml);
+  });
+  </script>
 </body>
 </html>
