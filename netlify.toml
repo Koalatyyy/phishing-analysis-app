@@ -1,0 +1,9 @@
+[build]
+  # No build step needed -- serve files directly
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Environment variables are set via Netlify UI or netlify env:set

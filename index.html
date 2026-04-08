@@ -70,7 +70,13 @@
     <textarea id="paste-area" class="paste-area" rows="6"
       placeholder="Paste raw email headers here&#10;&#10;Received: from mail.example.com (mail.example.com [203.0.113.1])&#10;From: &quot;PayPal&quot; &lt;security@paypal.com&gt;&#10;Reply-To: harvest@evil.com&#10;..."></textarea>
     <div id="paste-error" class="inline-error"></div>
-    <button id="btn-analyze" class="btn-analyze">Analyze Headers</button>
+    <div style="display:flex;gap:12px;align-items:center;margin:16px 0">
+      <button id="btn-analyze" class="btn-analyze">Analyze Headers</button>
+      <label style="font-size:0.9rem;color:var(--text-muted);display:flex;gap:6px;align-items:center">
+        <input type="checkbox" id="check-phishtank" />
+        Check URLs against PhishTank
+      </label>
+    </div>
   </div>
 
   <div id="results"></div>
@@ -123,7 +129,7 @@
     if (e.key === 'Enter' || e.key === ' ') dropZone.click();
   });
 
-  btnAnalyze.addEventListener('click', () => {
+  btnAnalyze.addEventListener('click', async () => {
     clearError(dropError);
     clearError(pasteError);
 
@@ -148,6 +154,28 @@
     if (result.error) {
       showError(pasteError, result.error);
       return;
+    }
+
+    // Optional: check URLs against PhishTank
+    if (document.getElementById('check-phishtank').checked && isEml && result.urlResults) {
+      btnAnalyze.disabled = true;
+      btnAnalyze.textContent = 'Checking PhishTank...';
+      for (const urlResult of result.urlResults) {
+        try {
+          const res = await fetch('/.netlify/functions/phishtank-check', {
+            method: 'POST',
+            body: JSON.stringify({ url: urlResult.url })
+          });
+          if (res.ok) {
+            const phishData = await res.json();
+            urlResult.phishTankCheck = phishData;
+          }
+        } catch (e) {
+          console.error(`PhishTank check failed for ${urlResult.url}:`, e);
+        }
+      }
+      btnAnalyze.disabled = false;
+      btnAnalyze.textContent = 'Analyze Headers';
     }
 
     renderResults(result, isEml);
@@ -221,12 +249,20 @@
       return wrap;
     }
 
-    for (const { url, flags } of urlResults) {
+    for (const { url, flags, phishTankCheck } of urlResults) {
       const item = el('div', 'url-item');
       item.appendChild(el('div', 'url-text', url));
-      if (flags.length) {
+
+      const allFlags = [...flags];
+      if (phishTankCheck) {
+        if (phishTankCheck.inPhishTank) {
+          allFlags.push(`⚠️ PhishTank: Known phishing (${phishTankCheck.confidence}% confidence)`);
+        }
+      }
+
+      if (allFlags.length) {
         const flagsDiv = el('div', 'url-flags');
-        for (const flag of flags) flagsDiv.appendChild(el('span', 'url-flag', flag));
+        for (const flag of allFlags) flagsDiv.appendChild(el('span', 'url-flag', flag));
         item.appendChild(flagsDiv);
       } else {
         const clean = el('span', null, 'No flags');
