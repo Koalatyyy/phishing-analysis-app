@@ -107,6 +107,67 @@
     return { status: 'fail', detail: `${count} hops (excessive -- strongly suspicious)` };
   }
 
+  const URL_SHORTENERS = new Set([
+    'bit.ly','tinyurl.com','t.co','ow.ly','buff.ly','is.gd','ift.tt',
+    'adf.ly','j.mp','tr.im','wp.me','short.io','rb.gy','cutt.ly',
+  ]);
+
+  const BRAND_NAMES = [
+    'paypal','microsoft','amazon','apple','google','facebook',
+    'netflix','instagram','twitter','linkedin','dropbox','docusign',
+    'chase','wellsfargo','bankofamerica','usps','fedex','ups',
+  ];
+
+  function extractUrls(text, parseHtml) {
+    const urlMap = new Map();
+    for (const m of text.matchAll(/https?:\/\/[^\s<>"')\]]+/gi)) {
+      const url = m[0].replace(/[.,;:!?]+$/, '');
+      if (!urlMap.has(url)) urlMap.set(url, { url, anchorText: null });
+    }
+    if (parseHtml) {
+      for (const { href, text: anchorText } of parseHtml(text)) {
+        if (!/^https?:\/\//i.test(href)) continue;
+        if (urlMap.has(href)) urlMap.get(href).anchorText = anchorText;
+        else urlMap.set(href, { url: href, anchorText });
+      }
+    }
+    return Array.from(urlMap.values());
+  }
+
+  function flagUrl({ url, anchorText }) {
+    const flags = [];
+    let hostname;
+    try { hostname = new URL(url).hostname.toLowerCase(); }
+    catch { return ['Malformed URL']; }
+
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname))
+      flags.push('IP address hostname (no domain)');
+
+    if (URL_SHORTENERS.has(hostname))
+      flags.push('Known URL shortener');
+
+    if (hostname.startsWith('xn--') || hostname.split('.').some(l => l.startsWith('xn--')))
+      flags.push('Internationalized domain (possible homograph attack)');
+
+    if (hostname.split('.').length > 4)
+      flags.push('Excessive subdomains');
+
+    for (const brand of BRAND_NAMES) {
+      if (hostname.includes(brand) && hostname !== `${brand}.com` && !hostname.endsWith(`.${brand}.com`)) {
+        flags.push(`Possible ${brand} lookalike domain`);
+        break;
+      }
+    }
+
+    if (anchorText) {
+      const anchorHostMatch = anchorText.match(/https?:\/\/([^\s/]+)/i);
+      if (anchorHostMatch && anchorHostMatch[1].toLowerCase() !== hostname)
+        flags.push(`Anchor text shows "${anchorHostMatch[1].toLowerCase()}" but links to "${hostname}"`);
+    }
+
+    return flags;
+  }
+
   exports.splitEmail = splitEmail;
   exports.parseHeaders = parseHeaders;
   exports.extractDomain = extractDomain;
@@ -118,5 +179,7 @@
   exports.checkDisplayName = checkDisplayName;
   exports.checkMessageId = checkMessageId;
   exports.checkReceivedHops = checkReceivedHops;
+  exports.extractUrls = extractUrls;
+  exports.flagUrl = flagUrl;
 
 })(typeof module !== 'undefined' ? module.exports : (window.Analyzer = {}));

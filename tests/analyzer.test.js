@@ -164,5 +164,50 @@ test('checkReceivedHops: na when no Received headers', () => {
   assert.strictEqual(A.checkReceivedHops(A.parseHeaders('From: x@y.com')).status, 'na');
 });
 
+// extractUrls
+test('extractUrls: finds plain-text URLs', () => {
+  const urls = A.extractUrls('Visit https://evil.com/login and https://good.com');
+  assert.strictEqual(urls.length, 2);
+  assert.ok(urls.some(u => u.url === 'https://evil.com/login'));
+});
+test('extractUrls: returns empty for no URLs', () => {
+  assert.deepStrictEqual(A.extractUrls('no links here'), []);
+});
+test('extractUrls: uses parseHtml for anchor hrefs', () => {
+  const stub = () => [{ href: 'https://evil.com', text: 'Click here' }];
+  const urls = A.extractUrls('<a href="https://evil.com">Click</a>', stub);
+  assert.ok(urls.some(u => u.url === 'https://evil.com' && u.anchorText === 'Click here'));
+});
+test('extractUrls: deduplicates -- anchor enriches plain-text entry', () => {
+  const stub = () => [{ href: 'https://evil.com', text: 'link' }];
+  const urls = A.extractUrls('https://evil.com <a>', stub);
+  assert.strictEqual(urls.filter(u => u.url === 'https://evil.com').length, 1);
+  assert.strictEqual(urls.find(u => u.url === 'https://evil.com').anchorText, 'link');
+});
+
+// flagUrl
+test('flagUrl: IP address hostname', () => {
+  assert.ok(A.flagUrl({ url: 'http://192.168.1.1/login', anchorText: null }).some(f => f.includes('IP address')));
+});
+test('flagUrl: known URL shortener', () => {
+  assert.ok(A.flagUrl({ url: 'https://bit.ly/abc123', anchorText: null }).some(f => f.includes('shortener')));
+});
+test('flagUrl: punycode hostname', () => {
+  assert.ok(A.flagUrl({ url: 'https://xn--pypal-4ve.com', anchorText: null }).some(f => f.includes('homograph')));
+});
+test('flagUrl: excessive subdomains (5 parts)', () => {
+  assert.ok(A.flagUrl({ url: 'https://a.b.c.evil.com', anchorText: null }).some(f => f.includes('subdomain')));
+});
+test('flagUrl: brand lookalike', () => {
+  assert.ok(A.flagUrl({ url: 'https://paypal-login.evil.com', anchorText: null }).some(f => f.includes('paypal')));
+});
+test('flagUrl: anchor text mismatch', () => {
+  const flags = A.flagUrl({ url: 'https://evil.com', anchorText: 'https://paypal.com go here' });
+  assert.ok(flags.some(f => f.includes('paypal.com')));
+});
+test('flagUrl: clean URL returns no flags', () => {
+  assert.deepStrictEqual(A.flagUrl({ url: 'https://paypal.com/pay', anchorText: null }), []);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
