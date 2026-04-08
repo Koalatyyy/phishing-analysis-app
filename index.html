@@ -73,8 +73,8 @@
     <div style="display:flex;gap:12px;align-items:center;margin:16px 0">
       <button id="btn-analyze" class="btn-analyze">Analyze Headers</button>
       <label style="font-size:0.9rem;color:var(--text-muted);display:flex;gap:6px;align-items:center">
-        <input type="checkbox" id="check-phishtank" />
-        Check URLs against PhishTank
+        <input type="checkbox" id="check-safe-browsing" />
+        Check URLs against Safe Browsing
       </label>
     </div>
   </div>
@@ -156,22 +156,22 @@
       return;
     }
 
-    // Optional: check URLs against PhishTank
-    if (document.getElementById('check-phishtank').checked && isEml && result.urlResults) {
+    // Optional: check URLs against Google Safe Browsing
+    if (document.getElementById('check-safe-browsing').checked && isEml && result.urlResults) {
       btnAnalyze.disabled = true;
-      btnAnalyze.textContent = 'Checking PhishTank...';
+      btnAnalyze.textContent = 'Checking Safe Browsing...';
       for (const urlResult of result.urlResults) {
         try {
-          const res = await fetch('/.netlify/functions/phishtank-check', {
+          const res = await fetch('/.netlify/functions/safe-browsing-check', {
             method: 'POST',
             body: JSON.stringify({ url: urlResult.url })
           });
           if (res.ok) {
-            const phishData = await res.json();
-            urlResult.phishTankCheck = phishData;
+            const safeBrowsingData = await res.json();
+            urlResult.safeBrowsingCheck = safeBrowsingData;
           }
         } catch (e) {
-          console.error(`PhishTank check failed for ${urlResult.url}:`, e);
+          console.error(`Safe Browsing check failed for ${urlResult.url}:`, e);
         }
       }
       btnAnalyze.disabled = false;
@@ -249,14 +249,15 @@
       return wrap;
     }
 
-    for (const { url, flags, phishTankCheck } of urlResults) {
+    for (const { url, flags, safeBrowsingCheck } of urlResults) {
       const item = el('div', 'url-item');
       item.appendChild(el('div', 'url-text', url));
 
       const allFlags = [...flags];
-      if (phishTankCheck) {
-        if (phishTankCheck.inPhishTank) {
-          allFlags.push(`⚠️ PhishTank: Known phishing (${phishTankCheck.confidence}% confidence)`);
+      if (safeBrowsingCheck) {
+        if (safeBrowsingCheck.isMalicious) {
+          const threats = safeBrowsingCheck.threats.join(', ');
+          allFlags.push(`⚠️ Safe Browsing: ${threats}`);
         }
       }
 
