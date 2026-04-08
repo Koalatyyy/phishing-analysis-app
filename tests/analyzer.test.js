@@ -97,5 +97,41 @@ test('checkDMARC: na when missing', () => {
   assert.strictEqual(A.checkDMARC(A.parseHeaders('From: x@y.com')).status, 'na');
 });
 
+// checkReplyTo
+test('checkReplyTo: pass when absent', () => {
+  assert.strictEqual(A.checkReplyTo(A.parseHeaders('From: a@paypal.com')).status, 'pass');
+});
+test('checkReplyTo: pass when domains match', () => {
+  assert.strictEqual(A.checkReplyTo(A.parseHeaders('From: a@paypal.com\r\nReply-To: b@paypal.com')).status, 'pass');
+});
+test('checkReplyTo: warn when domains differ', () => {
+  assert.strictEqual(A.checkReplyTo(A.parseHeaders('From: a@paypal.com\r\nReply-To: b@evil.com')).status, 'warn');
+});
+
+// checkReturnPath
+test('checkReturnPath: na when absent', () => {
+  assert.strictEqual(A.checkReturnPath(A.parseHeaders('From: a@paypal.com')).status, 'na');
+});
+test('checkReturnPath: pass when domains match', () => {
+  assert.strictEqual(A.checkReturnPath(A.parseHeaders('From: a@paypal.com\r\nReturn-Path: <bounce@paypal.com>')).status, 'pass');
+});
+test('checkReturnPath: warn when domains differ', () => {
+  assert.strictEqual(A.checkReturnPath(A.parseHeaders('From: a@paypal.com\r\nReturn-Path: <bounce@evil.com>')).status, 'warn');
+});
+
+// checkDisplayName
+test('checkDisplayName: pass when no display name', () => {
+  assert.strictEqual(A.checkDisplayName(A.parseHeaders('From: user@paypal.com')).status, 'pass');
+});
+test('checkDisplayName: pass when name has no domain string', () => {
+  assert.strictEqual(A.checkDisplayName(A.parseHeaders('From: "PayPal Security" <user@paypal.com>')).status, 'pass');
+});
+test('checkDisplayName: warn when name contains different domain', () => {
+  assert.strictEqual(A.checkDisplayName(A.parseHeaders('From: "support@paypal.com" <user@evil.com>')).status, 'warn');
+});
+test('checkDisplayName: pass when name domain matches From domain', () => {
+  assert.strictEqual(A.checkDisplayName(A.parseHeaders('From: "paypal.com Support" <user@paypal.com>')).status, 'pass');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

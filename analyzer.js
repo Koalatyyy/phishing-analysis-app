@@ -56,11 +56,49 @@
     return { status: 'na', detail: 'DMARC result not found in Authentication-Results' };
   }
 
+  function checkReplyTo(headers) {
+    const from = (headers.get('from') || [''])[0];
+    const replyTo = (headers.get('reply-to') || [])[0];
+    if (!replyTo) return { status: 'pass', detail: 'No Reply-To header present' };
+    const fromDomain = extractDomain(from);
+    const replyDomain = extractDomain(replyTo);
+    if (!fromDomain || !replyDomain) return { status: 'na', detail: 'Could not parse domains from From/Reply-To' };
+    if (fromDomain === replyDomain) return { status: 'pass', detail: `Reply-To domain matches From domain (${fromDomain})` };
+    return { status: 'warn', detail: `Reply-To domain (${replyDomain}) differs from From domain (${fromDomain})` };
+  }
+
+  function checkReturnPath(headers) {
+    const from = (headers.get('from') || [''])[0];
+    const rp = (headers.get('return-path') || [])[0];
+    if (!rp) return { status: 'na', detail: 'Return-Path header not found' };
+    const fromDomain = extractDomain(from);
+    const rpDomain = extractDomain(rp);
+    if (!fromDomain || !rpDomain) return { status: 'na', detail: 'Could not parse domains from From/Return-Path' };
+    if (fromDomain === rpDomain) return { status: 'pass', detail: `Return-Path domain matches From domain (${fromDomain})` };
+    return { status: 'warn', detail: `Return-Path domain (${rpDomain}) differs from From domain (${fromDomain})` };
+  }
+
+  function checkDisplayName(headers) {
+    const from = (headers.get('from') || [''])[0];
+    const displayMatch = from.match(/^"?([^"<]*)"?\s*</);
+    if (!displayMatch) return { status: 'pass', detail: 'No display name to inspect' };
+    const displayName = displayMatch[1].trim().toLowerCase();
+    const actualDomain = extractDomain(from);
+    const domainInName = displayName.match(/\b([a-z0-9-]+\.[a-z]{2,})\b/);
+    if (!domainInName) return { status: 'pass', detail: 'Display name contains no domain-like string' };
+    const namedDomain = domainInName[1];
+    if (!actualDomain || namedDomain === actualDomain) return { status: 'pass', detail: 'Display name domain matches sending domain' };
+    return { status: 'warn', detail: `Display name references "${namedDomain}" but email is from ${actualDomain}` };
+  }
+
   exports.splitEmail = splitEmail;
   exports.parseHeaders = parseHeaders;
   exports.extractDomain = extractDomain;
   exports.checkSPF = checkSPF;
   exports.checkDKIM = checkDKIM;
   exports.checkDMARC = checkDMARC;
+  exports.checkReplyTo = checkReplyTo;
+  exports.checkReturnPath = checkReturnPath;
+  exports.checkDisplayName = checkDisplayName;
 
 })(typeof module !== 'undefined' ? module.exports : (window.Analyzer = {}));
