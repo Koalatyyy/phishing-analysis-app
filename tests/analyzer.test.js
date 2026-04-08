@@ -38,5 +38,61 @@ test('parseHeaders: returns empty map for empty string', () => {
   assert.strictEqual(A.parseHeaders('').size, 0);
 });
 
+// extractDomain
+test('extractDomain: angle-bracket format', () => {
+  assert.strictEqual(A.extractDomain('"PayPal" <security@paypal.com>'), 'paypal.com');
+});
+test('extractDomain: bare email', () => {
+  assert.strictEqual(A.extractDomain('user@example.com'), 'example.com');
+});
+test('extractDomain: returns null for non-email', () => {
+  assert.strictEqual(A.extractDomain('not an email'), null);
+});
+
+// checkSPF
+test('checkSPF: pass', () => {
+  assert.strictEqual(A.checkSPF(A.parseHeaders('Received-SPF: pass (permitted)')).status, 'pass');
+});
+test('checkSPF: warn on softfail', () => {
+  assert.strictEqual(A.checkSPF(A.parseHeaders('Received-SPF: softfail')).status, 'warn');
+});
+test('checkSPF: warn on neutral', () => {
+  assert.strictEqual(A.checkSPF(A.parseHeaders('Received-SPF: neutral')).status, 'warn');
+});
+test('checkSPF: fail on fail', () => {
+  assert.strictEqual(A.checkSPF(A.parseHeaders('Received-SPF: fail (not permitted)')).status, 'fail');
+});
+test('checkSPF: fail on permerror', () => {
+  assert.strictEqual(A.checkSPF(A.parseHeaders('Received-SPF: permerror')).status, 'fail');
+});
+test('checkSPF: na when missing', () => {
+  assert.strictEqual(A.checkSPF(A.parseHeaders('From: x@y.com')).status, 'na');
+});
+
+// checkDKIM
+test('checkDKIM: pass from authentication-results', () => {
+  assert.strictEqual(A.checkDKIM(A.parseHeaders('Authentication-Results: mx; dkim=pass')).status, 'pass');
+});
+test('checkDKIM: fail from authentication-results', () => {
+  assert.strictEqual(A.checkDKIM(A.parseHeaders('Authentication-Results: mx; dkim=fail')).status, 'fail');
+});
+test('checkDKIM: pass from DKIM-Signature presence', () => {
+  assert.strictEqual(A.checkDKIM(A.parseHeaders('DKIM-Signature: v=1; a=rsa-sha256')).status, 'pass');
+});
+test('checkDKIM: na when neither present', () => {
+  assert.strictEqual(A.checkDKIM(A.parseHeaders('From: x@y.com')).status, 'na');
+});
+
+// checkDMARC
+test('checkDMARC: pass', () => {
+  assert.strictEqual(A.checkDMARC(A.parseHeaders('Authentication-Results: mx; dmarc=pass')).status, 'pass');
+});
+test('checkDMARC: fail', () => {
+  assert.strictEqual(A.checkDMARC(A.parseHeaders('Authentication-Results: mx; dmarc=fail')).status, 'fail');
+});
+test('checkDMARC: na when missing', () => {
+  assert.strictEqual(A.checkDMARC(A.parseHeaders('From: x@y.com')).status, 'na');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

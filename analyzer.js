@@ -23,7 +23,44 @@
     return map;
   }
 
+  function extractDomain(str) {
+    const angleMatch = str.match(/<[^>]*@([^>]+)>/);
+    if (angleMatch) return angleMatch[1].toLowerCase().trim();
+    const bareMatch = str.match(/\S+@([^\s>]+)/);
+    if (bareMatch) return bareMatch[1].toLowerCase().trim();
+    return null;
+  }
+
+  function checkSPF(headers) {
+    const vals = headers.get('received-spf');
+    if (!vals || !vals.length) return { status: 'na', detail: 'Received-SPF header not found' };
+    const keyword = vals[0].trim().toLowerCase().split(/[\s(]/)[0];
+    if (keyword === 'pass') return { status: 'pass', detail: 'Received-SPF: pass' };
+    if (keyword === 'softfail' || keyword === 'neutral') return { status: 'warn', detail: `Received-SPF: ${keyword}` };
+    if (['fail','permerror','temperror'].includes(keyword)) return { status: 'fail', detail: `Received-SPF: ${keyword}` };
+    return { status: 'na', detail: `Received-SPF: ${keyword} (unrecognized)` };
+  }
+
+  function checkDKIM(headers) {
+    const auth = (headers.get('authentication-results') || []).join(' ').toLowerCase();
+    if (auth.includes('dkim=pass')) return { status: 'pass', detail: 'DKIM signature verified (dkim=pass)' };
+    if (auth.includes('dkim=fail')) return { status: 'fail', detail: 'DKIM signature failed (dkim=fail)' };
+    if ((headers.get('dkim-signature') || []).length) return { status: 'pass', detail: 'DKIM-Signature header present' };
+    return { status: 'na', detail: 'No DKIM information found' };
+  }
+
+  function checkDMARC(headers) {
+    const auth = (headers.get('authentication-results') || []).join(' ').toLowerCase();
+    if (auth.includes('dmarc=pass')) return { status: 'pass', detail: 'DMARC policy passed' };
+    if (auth.includes('dmarc=fail')) return { status: 'fail', detail: 'DMARC policy failed' };
+    return { status: 'na', detail: 'DMARC result not found in Authentication-Results' };
+  }
+
   exports.splitEmail = splitEmail;
   exports.parseHeaders = parseHeaders;
+  exports.extractDomain = extractDomain;
+  exports.checkSPF = checkSPF;
+  exports.checkDKIM = checkDKIM;
+  exports.checkDMARC = checkDMARC;
 
 })(typeof module !== 'undefined' ? module.exports : (window.Analyzer = {}));
