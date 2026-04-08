@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phishing Header Analyzer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+  <header class="page-header">
+    <h1>Phishing Header Analyzer</h1>
+    <p class="tagline">Paste raw email headers or drop a .eml file to check for phishing indicators. All analysis runs locally -- nothing is uploaded.</p>
+  </header>
+
+  <details class="collapsible">
+    <summary>How to get your email headers</summary>
+    <div class="collapsible-body">
+      <h4>Gmail</h4>
+      <ol>
+        <li>Open the email.</li>
+        <li>Click the three-dot menu (&#8942;) in the top-right of the message.</li>
+        <li>Select <strong>Show original</strong>.</li>
+        <li>Copy the full text, or click <strong>Download Original</strong> to save as a .eml file.</li>
+      </ol>
+      <h4>Outlook (Web)</h4>
+      <ol>
+        <li>Open the email.</li>
+        <li>Click the three-dot menu &#8594; <strong>View</strong> &#8594; <strong>View message source</strong>.</li>
+        <li>Copy all the text, or save via your browser's Save As.</li>
+      </ol>
+      <h4>Apple Mail</h4>
+      <ol>
+        <li>Select the email in your inbox.</li>
+        <li>Go to <strong>View &#8594; Message &#8594; Raw Source</strong> (or press <code>&#8997;&#8984;U</code>).</li>
+        <li>Copy the content, or drag the email to your Desktop to save as a .eml file.</li>
+      </ol>
+    </div>
+  </details>
+
+  <details class="collapsible">
+    <summary>What this tool checks</summary>
+    <div class="collapsible-body">
+      <ul>
+        <li><strong>SPF</strong> -- whether the sending server is authorized to send for the From domain</li>
+        <li><strong>DKIM</strong> -- whether the email carries a valid cryptographic signature</li>
+        <li><strong>DMARC</strong> -- whether the email passed the domain owner's published policy</li>
+        <li><strong>Reply-To mismatch</strong> -- whether replies would go to a different domain than the sender</li>
+        <li><strong>Return-Path mismatch</strong> -- whether bounces would go to a different domain</li>
+        <li><strong>Display name spoofing</strong> -- whether the visible sender name references a domain that differs from the actual sending address</li>
+        <li><strong>Message-ID</strong> -- whether the message carries a well-formed unique identifier</li>
+        <li><strong>Received hops</strong> -- whether the email passed through an unusual number of mail servers</li>
+        <li><strong>Suspicious URLs</strong> (.eml files only) -- whether body links use IP addresses, URL shorteners, or lookalike domains</li>
+      </ul>
+    </div>
+  </details>
+
+  <div id="input-section" style="margin-top:24px">
+    <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Drop zone for .eml files">
+      <div class="drop-icon">&#128231;</div>
+      <div class="drop-primary">Drop a .eml file here</div>
+      <div class="drop-secondary">Drag from your file manager or email client</div>
+      <div id="drop-filename" class="drop-filename" style="display:none"></div>
+    </div>
+    <div id="drop-error" class="inline-error"></div>
+    <div class="or-divider">or</div>
+    <textarea id="paste-area" class="paste-area" rows="6"
+      placeholder="Paste raw email headers here&#10;&#10;Received: from mail.example.com (mail.example.com [203.0.113.1])&#10;From: &quot;PayPal&quot; &lt;security@paypal.com&gt;&#10;Reply-To: harvest@evil.com&#10;..."></textarea>
+    <div id="paste-error" class="inline-error"></div>
+    <button id="btn-analyze" class="btn-analyze">Analyze Headers</button>
+  </div>
+
+  <div id="results"></div>
+
+</div>
+  <script src="analyzer.js"></script>
+  <script>
+  const dropZone     = document.getElementById('drop-zone');
+  const dropFilename = document.getElementById('drop-filename');
+  const dropError    = document.getElementById('drop-error');
+  const pasteArea    = document.getElementById('paste-area');
+  const pasteError   = document.getElementById('paste-error');
+  const btnAnalyze   = document.getElementById('btn-analyze');
+
+  let droppedEmlText = null;
+
+  function showError(el, msg) { el.textContent = msg; el.classList.add('visible'); }
+  function clearError(el)     { el.textContent = '';  el.classList.remove('visible'); }
+
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    clearError(dropError);
+    droppedEmlText = null;
+    dropZone.classList.remove('has-file');
+    dropFilename.style.display = 'none';
+
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.eml')) {
+      showError(dropError, 'Only .eml files are supported. Use the paste area for raw headers.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      droppedEmlText = ev.target.result;
+      dropZone.classList.add('has-file');
+      dropFilename.textContent = file.name;
+      dropFilename.style.display = 'block';
+    };
+    reader.readAsText(file);
+  });
+
+  dropZone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') dropZone.click();
+  });
+
+  btnAnalyze.addEventListener('click', () => {
+    clearError(dropError);
+    clearError(pasteError);
+
+    const isEml = !!droppedEmlText;
+    const input = isEml ? droppedEmlText : pasteArea.value.trim();
+
+    if (!input) {
+      showError(pasteError, 'Paste headers or drop a .eml file first.');
+      return;
+    }
+
+    const parseHtml = isEml ? (html) => {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      return Array.from(doc.querySelectorAll('a[href]')).map(a => ({
+        href: a.getAttribute('href') || '',
+        text: a.textContent.trim(),
+      }));
+    } : null;
+
+    const result = window.Analyzer.runAnalysis(input, { isEml, parseHtml });
+
+    if (result.error) {
+      showError(pasteError, result.error);
+      return;
+    }
+
+    renderResults(result, isEml);
+  });
+
+  const VERDICT_ICONS  = { red: '\u26a0\ufe0f', amber: '\u26a0\ufe0f', green: '\u2705' };
+  const VERDICT_BADGES = { red: 'HIGH RISK', amber: 'SUSPICIOUS', green: 'LIKELY SAFE' };
+  const STATUS_LABELS  = { pass: 'PASS', warn: 'WARN', fail: 'FAIL', na: 'N/A' };
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function renderResults(result, isEml) {
+    const container = document.getElementById('results');
+    container.textContent = '';
+    container.classList.add('visible');
+    container.appendChild(renderVerdict(result.verdict));
+    container.appendChild(renderChecks(result.checks));
+    if (isEml && result.urlResults !== null) {
+      container.appendChild(renderUrls(result.urlResults));
+    } else if (!isEml) {
+      const note = el('p', null, 'Drop a .eml file to also scan links in the email body.');
+      note.style.cssText = 'font-size:0.8rem;color:var(--text-muted);margin-top:-12px;margin-bottom:24px';
+      container.appendChild(note);
+    }
+    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderVerdict(verdict) {
+    const banner = el('div', `verdict-banner ${verdict.color}`);
+
+    banner.appendChild(el('div', 'verdict-icon', VERDICT_ICONS[verdict.color]));
+
+    const textDiv = el('div');
+    textDiv.appendChild(el('div', 'verdict-label', verdict.label));
+    const parts = [];
+    if (verdict.failCount > 0) parts.push(`${verdict.failCount} check${verdict.failCount > 1 ? 's' : ''} failed`);
+    if (verdict.warnCount > 0) parts.push(`${verdict.warnCount} warning${verdict.warnCount > 1 ? 's' : ''}`);
+    textDiv.appendChild(el('div', 'verdict-sub', parts.join(' \u00b7 ') || 'No issues found'));
+    banner.appendChild(textDiv);
+
+    banner.appendChild(el('span', 'verdict-badge', VERDICT_BADGES[verdict.color]));
+    return banner;
+  }
+
+  function renderChecks(checks) {
+    const wrap = el('div');
+    wrap.appendChild(el('div', 'section-label', 'Check Breakdown'));
+    const list = el('div', 'checks-list');
+    for (const check of checks) {
+      const row = el('div', `check-row ${check.status}`);
+      row.appendChild(el('span', 'check-tag', STATUS_LABELS[check.status]));
+      row.appendChild(el('span', 'check-name', check.name));
+      row.appendChild(el('span', 'check-detail', check.detail));
+      list.appendChild(row);
+    }
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function renderUrls(urlResults) {
+    const wrap = el('div', 'url-section');
+    wrap.appendChild(el('div', 'section-label', 'URL Analysis'));
+
+    if (!urlResults.length) {
+      wrap.appendChild(el('p', 'url-clean', 'No URLs found in email body.'));
+      return wrap;
+    }
+
+    for (const { url, flags } of urlResults) {
+      const item = el('div', 'url-item');
+      item.appendChild(el('div', 'url-text', url));
+      if (flags.length) {
+        const flagsDiv = el('div', 'url-flags');
+        for (const flag of flags) flagsDiv.appendChild(el('span', 'url-flag', flag));
+        item.appendChild(flagsDiv);
+      } else {
+        const clean = el('span', null, 'No flags');
+        clean.style.cssText = 'font-size:0.72rem;color:var(--green);margin-top:4px;display:inline-block';
+        item.appendChild(clean);
+      }
+      wrap.appendChild(item);
+    }
+    return wrap;
+  }
+  </script>
+</body>
+</html>
