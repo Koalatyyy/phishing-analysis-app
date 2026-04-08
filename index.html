@@ -9,7 +9,37 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="app"><p>Loading...</p></div>
+  <div id="app">
+  <header class="page-header">
+    <h1>Phishing Header Analyzer</h1>
+    <p class="tagline">Paste or drop an email to check for phishing indicators.</p>
+  </header>
+  <div class="drop-zone">
+    <div class="drop-icon">&#128231;</div>
+    <div class="drop-primary">Drop a .eml file here</div>
+    <div class="drop-secondary">Drag from your file manager</div>
+  </div>
+  <div class="or-divider">or</div>
+  <textarea class="paste-area" placeholder="Paste headers here..."></textarea>
+  <button class="btn-analyze">Analyze Headers</button>
+  <div id="results" class="visible" style="margin-top:32px">
+    <div class="verdict-banner red">
+      <div class="verdict-icon">&#9888;</div>
+      <div>
+        <div class="verdict-label">Likely Phishing</div>
+        <div class="verdict-sub">4 checks failed</div>
+      </div>
+      <span class="verdict-badge">HIGH RISK</span>
+    </div>
+    <div class="section-label">Check Breakdown</div>
+    <div class="checks-list">
+      <div class="check-row fail"><span class="check-tag">FAIL</span><span class="check-name">SPF</span><span class="check-detail">Received-SPF: fail</span></div>
+      <div class="check-row warn"><span class="check-tag">WARN</span><span class="check-name">Reply-To Mismatch</span><span class="check-detail">domains differ</span></div>
+      <div class="check-row pass"><span class="check-tag">PASS</span><span class="check-name">DKIM</span><span class="check-detail">dkim=pass</span></div>
+      <div class="check-row na"><span class="check-tag">N/A</span><span class="check-name">DMARC</span><span class="check-detail">not found</span></div>
+    </div>
+  </div>
+</div>
   <script src="analyzer.js"></script>
 </body>
 </html>
