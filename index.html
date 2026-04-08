@@ -10,35 +10,71 @@
 </head>
 <body>
   <div id="app">
+
   <header class="page-header">
     <h1>Phishing Header Analyzer</h1>
-    <p class="tagline">Paste or drop an email to check for phishing indicators.</p>
+    <p class="tagline">Paste raw email headers or drop a .eml file to check for phishing indicators. All analysis runs locally -- nothing is uploaded.</p>
   </header>
-  <div class="drop-zone">
-    <div class="drop-icon">&#128231;</div>
-    <div class="drop-primary">Drop a .eml file here</div>
-    <div class="drop-secondary">Drag from your file manager</div>
-  </div>
-  <div class="or-divider">or</div>
-  <textarea class="paste-area" placeholder="Paste headers here..."></textarea>
-  <button class="btn-analyze">Analyze Headers</button>
-  <div id="results" class="visible" style="margin-top:32px">
-    <div class="verdict-banner red">
-      <div class="verdict-icon">&#9888;</div>
-      <div>
-        <div class="verdict-label">Likely Phishing</div>
-        <div class="verdict-sub">4 checks failed</div>
-      </div>
-      <span class="verdict-badge">HIGH RISK</span>
+
+  <details class="collapsible">
+    <summary>How to get your email headers</summary>
+    <div class="collapsible-body">
+      <h4>Gmail</h4>
+      <ol>
+        <li>Open the email.</li>
+        <li>Click the three-dot menu (&#8942;) in the top-right of the message.</li>
+        <li>Select <strong>Show original</strong>.</li>
+        <li>Copy the full text, or click <strong>Download Original</strong> to save as a .eml file.</li>
+      </ol>
+      <h4>Outlook (Web)</h4>
+      <ol>
+        <li>Open the email.</li>
+        <li>Click the three-dot menu &#8594; <strong>View</strong> &#8594; <strong>View message source</strong>.</li>
+        <li>Copy all the text, or save via your browser's Save As.</li>
+      </ol>
+      <h4>Apple Mail</h4>
+      <ol>
+        <li>Select the email in your inbox.</li>
+        <li>Go to <strong>View &#8594; Message &#8594; Raw Source</strong> (or press <code>&#8997;&#8984;U</code>).</li>
+        <li>Copy the content, or drag the email to your Desktop to save as a .eml file.</li>
+      </ol>
     </div>
-    <div class="section-label">Check Breakdown</div>
-    <div class="checks-list">
-      <div class="check-row fail"><span class="check-tag">FAIL</span><span class="check-name">SPF</span><span class="check-detail">Received-SPF: fail</span></div>
-      <div class="check-row warn"><span class="check-tag">WARN</span><span class="check-name">Reply-To Mismatch</span><span class="check-detail">domains differ</span></div>
-      <div class="check-row pass"><span class="check-tag">PASS</span><span class="check-name">DKIM</span><span class="check-detail">dkim=pass</span></div>
-      <div class="check-row na"><span class="check-tag">N/A</span><span class="check-name">DMARC</span><span class="check-detail">not found</span></div>
+  </details>
+
+  <details class="collapsible">
+    <summary>What this tool checks</summary>
+    <div class="collapsible-body">
+      <ul>
+        <li><strong>SPF</strong> -- whether the sending server is authorized to send for the From domain</li>
+        <li><strong>DKIM</strong> -- whether the email carries a valid cryptographic signature</li>
+        <li><strong>DMARC</strong> -- whether the email passed the domain owner's published policy</li>
+        <li><strong>Reply-To mismatch</strong> -- whether replies would go to a different domain than the sender</li>
+        <li><strong>Return-Path mismatch</strong> -- whether bounces would go to a different domain</li>
+        <li><strong>Display name spoofing</strong> -- whether the visible sender name references a domain that differs from the actual sending address</li>
+        <li><strong>Message-ID</strong> -- whether the message carries a well-formed unique identifier</li>
+        <li><strong>Received hops</strong> -- whether the email passed through an unusual number of mail servers</li>
+        <li><strong>Suspicious URLs</strong> (.eml files only) -- whether body links use IP addresses, URL shorteners, or lookalike domains</li>
+      </ul>
     </div>
+  </details>
+
+  <div id="input-section" style="margin-top:24px">
+    <div id="drop-zone" class="drop-zone" role="button" tabindex="0" aria-label="Drop zone for .eml files">
+      <div class="drop-icon">&#128231;</div>
+      <div class="drop-primary">Drop a .eml file here</div>
+      <div class="drop-secondary">Drag from your file manager or email client</div>
+      <div id="drop-filename" class="drop-filename" style="display:none"></div>
+    </div>
+    <div id="drop-error" class="inline-error"></div>
+    <div class="or-divider">or</div>
+    <textarea id="paste-area" class="paste-area" rows="6"
+      placeholder="Paste raw email headers here&#10;&#10;Received: from mail.example.com (mail.example.com [203.0.113.1])&#10;From: &quot;PayPal&quot; &lt;security@paypal.com&gt;&#10;Reply-To: harvest@evil.com&#10;..."></textarea>
+    <div id="paste-error" class="inline-error"></div>
+    <button id="btn-analyze" class="btn-analyze">Analyze Headers</button>
   </div>
+
+  <div id="results"></div>
+
 </div>
   <script src="analyzer.js"></script>
 </body>
