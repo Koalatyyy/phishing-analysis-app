@@ -209,5 +209,55 @@ test('flagUrl: clean URL returns no flags', () => {
   assert.deepStrictEqual(A.flagUrl({ url: 'https://paypal.com/pay', anchorText: null }), []);
 });
 
+// calculateVerdict
+test('calculateVerdict: 0 score = Likely Legitimate (green)', () => {
+  const v = A.calculateVerdict([{ status: 'pass' }, { status: 'na' }]);
+  assert.strictEqual(v.label, 'Likely Legitimate');
+  assert.strictEqual(v.color, 'green');
+});
+test('calculateVerdict: 1 warn = Likely Legitimate', () => {
+  assert.strictEqual(A.calculateVerdict([{ status: 'warn' }]).label, 'Likely Legitimate');
+});
+test('calculateVerdict: 2 warns = Suspicious (amber)', () => {
+  const v = A.calculateVerdict([{ status: 'warn' }, { status: 'warn' }]);
+  assert.strictEqual(v.label, 'Suspicious');
+  assert.strictEqual(v.color, 'amber');
+});
+test('calculateVerdict: 2 fails = Likely Phishing (red)', () => {
+  const v = A.calculateVerdict([{ status: 'fail' }, { status: 'fail' }]);
+  assert.strictEqual(v.label, 'Likely Phishing');
+  assert.strictEqual(v.color, 'red');
+});
+test('calculateVerdict: counts correctly', () => {
+  const v = A.calculateVerdict([{ status: 'fail' }, { status: 'warn' }, { status: 'pass' }]);
+  assert.strictEqual(v.failCount, 1);
+  assert.strictEqual(v.warnCount, 1);
+  assert.strictEqual(v.score, 3);
+});
+
+// runAnalysis
+test('runAnalysis: 8 checks for paste input', () => {
+  const r = A.runAnalysis('From: x@y.com\r\nReceived: from a by b', { isEml: false });
+  assert.strictEqual(r.checks.length, 8);
+  assert.ok(r.checks.every(c => ['pass','warn','fail','na'].includes(c.status)));
+});
+test('runAnalysis: verdict has label, color, score', () => {
+  const r = A.runAnalysis('From: x@y.com', { isEml: false });
+  assert.ok(r.verdict.label);
+  assert.ok(['red','amber','green'].includes(r.verdict.color));
+});
+test('runAnalysis: urlResults null for paste input', () => {
+  assert.strictEqual(A.runAnalysis('From: x@y.com', { isEml: false }).urlResults, null);
+});
+test('runAnalysis: 9 checks and urlResults array for eml with URLs', () => {
+  const eml = 'From: x@y.com\r\nReceived: from a by b\r\n\r\nVisit https://bit.ly/abc for info.';
+  const r = A.runAnalysis(eml, { isEml: true });
+  assert.ok(Array.isArray(r.urlResults));
+  assert.strictEqual(r.checks.length, 9);
+});
+test('runAnalysis: returns error for unrecognizable input', () => {
+  assert.ok(A.runAnalysis('hello world', { isEml: false }).error);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -168,6 +168,53 @@
     return flags;
   }
 
+  function calculateVerdict(checkResults) {
+    let score = 0, failCount = 0, warnCount = 0;
+    for (const c of checkResults) {
+      if (c.status === 'fail') { score += 2; failCount++; }
+      else if (c.status === 'warn') { score += 1; warnCount++; }
+    }
+    let label, color;
+    if (score >= 4)      { label = 'Likely Phishing';  color = 'red'; }
+    else if (score >= 2) { label = 'Suspicious';        color = 'amber'; }
+    else                 { label = 'Likely Legitimate'; color = 'green'; }
+    return { label, color, score, failCount, warnCount };
+  }
+
+  function runAnalysis(rawInput, { isEml = false, parseHtml = null } = {}) {
+    const { headerText, bodyText } = isEml
+      ? splitEmail(rawInput)
+      : { headerText: rawInput, bodyText: '' };
+    const headers = parseHeaders(headerText);
+    if (headers.size === 0) return { error: 'Could not find email headers in this input.' };
+
+    const checks = [
+      { id: 'spf',          name: 'SPF',                   ...checkSPF(headers) },
+      { id: 'dkim',         name: 'DKIM',                  ...checkDKIM(headers) },
+      { id: 'dmarc',        name: 'DMARC',                 ...checkDMARC(headers) },
+      { id: 'reply-to',     name: 'Reply-To Mismatch',     ...checkReplyTo(headers) },
+      { id: 'return-path',  name: 'Return-Path Mismatch',  ...checkReturnPath(headers) },
+      { id: 'display-name', name: 'Display Name Spoofing', ...checkDisplayName(headers) },
+      { id: 'message-id',   name: 'Message-ID',            ...checkMessageId(headers) },
+      { id: 'hops',         name: 'Received Hops',         ...checkReceivedHops(headers) },
+    ];
+
+    let urlResults = null;
+    if (isEml) {
+      urlResults = extractUrls(bodyText, parseHtml).map(u => ({ ...u, flags: flagUrl(u) }));
+      const flaggedCount = urlResults.filter(u => u.flags.length > 0).length;
+      checks.push({
+        id: 'urls', name: 'Suspicious URLs',
+        status: flaggedCount === 0 ? 'pass' : flaggedCount <= 2 ? 'warn' : 'fail',
+        detail: flaggedCount === 0
+          ? 'No suspicious URLs found'
+          : `${flaggedCount} URL${flaggedCount > 1 ? 's' : ''} flagged`,
+      });
+    }
+
+    return { checks, verdict: calculateVerdict(checks), urlResults };
+  }
+
   exports.splitEmail = splitEmail;
   exports.parseHeaders = parseHeaders;
   exports.extractDomain = extractDomain;
@@ -181,5 +228,7 @@
   exports.checkReceivedHops = checkReceivedHops;
   exports.extractUrls = extractUrls;
   exports.flagUrl = flagUrl;
+  exports.calculateVerdict = calculateVerdict;
+  exports.runAnalysis = runAnalysis;
 
 })(typeof module !== 'undefined' ? module.exports : (window.Analyzer = {}));
