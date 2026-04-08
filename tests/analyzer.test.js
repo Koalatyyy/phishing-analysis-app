@@ -65,6 +65,9 @@ test('checkSPF: fail on fail', () => {
 test('checkSPF: fail on permerror', () => {
   assert.strictEqual(A.checkSPF(A.parseHeaders('Received-SPF: permerror')).status, 'fail');
 });
+test('checkSPF: fail on temperror', () => {
+  assert.strictEqual(A.checkSPF(A.parseHeaders('Received-SPF: temperror')).status, 'fail');
+});
 test('checkSPF: na when missing', () => {
   assert.strictEqual(A.checkSPF(A.parseHeaders('From: x@y.com')).status, 'na');
 });
