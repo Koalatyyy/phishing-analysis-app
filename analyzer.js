@@ -91,6 +91,22 @@
     return { status: 'warn', detail: `Display name references "${namedDomain}" but email is from ${actualDomain}` };
   }
 
+  function checkMessageId(headers) {
+    const val = (headers.get('message-id') || [])[0];
+    if (!val) return { status: 'warn', detail: 'Message-ID header is missing' };
+    if (val.includes('@')) return { status: 'pass', detail: 'Message-ID present and well-formed' };
+    return { status: 'warn', detail: 'Message-ID present but malformed (no @ found)' };
+  }
+
+  function checkReceivedHops(headers) {
+    const received = headers.get('received') || [];
+    const count = received.length;
+    if (count === 0)  return { status: 'na',   detail: 'No Received headers found' };
+    if (count <= 5)   return { status: 'pass',  detail: `${count} hop${count === 1 ? '' : 's'} (normal)` };
+    if (count <= 10)  return { status: 'warn',  detail: `${count} hops (elevated)` };
+    return { status: 'fail', detail: `${count} hops (excessive -- strongly suspicious)` };
+  }
+
   exports.splitEmail = splitEmail;
   exports.parseHeaders = parseHeaders;
   exports.extractDomain = extractDomain;
@@ -100,5 +116,7 @@
   exports.checkReplyTo = checkReplyTo;
   exports.checkReturnPath = checkReturnPath;
   exports.checkDisplayName = checkDisplayName;
+  exports.checkMessageId = checkMessageId;
+  exports.checkReceivedHops = checkReceivedHops;
 
 })(typeof module !== 'undefined' ? module.exports : (window.Analyzer = {}));

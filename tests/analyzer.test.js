@@ -133,5 +133,36 @@ test('checkDisplayName: pass when name domain matches From domain', () => {
   assert.strictEqual(A.checkDisplayName(A.parseHeaders('From: "paypal.com Support" <user@paypal.com>')).status, 'pass');
 });
 
+// checkMessageId
+test('checkMessageId: pass when well-formed', () => {
+  assert.strictEqual(A.checkMessageId(A.parseHeaders('Message-ID: <abc@mail.example.com>')).status, 'pass');
+});
+test('checkMessageId: warn when missing', () => {
+  assert.strictEqual(A.checkMessageId(A.parseHeaders('From: x@y.com')).status, 'warn');
+});
+test('checkMessageId: warn when malformed', () => {
+  assert.strictEqual(A.checkMessageId(A.parseHeaders('Message-ID: notvalid')).status, 'warn');
+});
+
+// checkReceivedHops
+test('checkReceivedHops: pass for 1 hop', () => {
+  assert.strictEqual(A.checkReceivedHops(A.parseHeaders('Received: from a by b')).status, 'pass');
+});
+test('checkReceivedHops: pass for 5 hops', () => {
+  const raw = Array(5).fill('Received: from a by b').join('\r\n');
+  assert.strictEqual(A.checkReceivedHops(A.parseHeaders(raw)).status, 'pass');
+});
+test('checkReceivedHops: warn for 6 hops', () => {
+  const raw = Array(6).fill('Received: from a by b').join('\r\n');
+  assert.strictEqual(A.checkReceivedHops(A.parseHeaders(raw)).status, 'warn');
+});
+test('checkReceivedHops: fail for 11 hops', () => {
+  const raw = Array(11).fill('Received: from a by b').join('\r\n');
+  assert.strictEqual(A.checkReceivedHops(A.parseHeaders(raw)).status, 'fail');
+});
+test('checkReceivedHops: na when no Received headers', () => {
+  assert.strictEqual(A.checkReceivedHops(A.parseHeaders('From: x@y.com')).status, 'na');
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
