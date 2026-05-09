@@ -60,3 +60,7 @@ node tests/analyzer.test.js
 ## Privacy
 
 All analysis runs locally in the browser. No data is sent anywhere.
+
+---
+
+> Part of my security engineering portfolio at [haggath.re](https://haggath.re)
